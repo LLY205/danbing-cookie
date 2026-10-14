@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#fffaf2" />
+    <meta name="description" content="自由挤画并烘烤鸡蛋饼干。" />
+    <title>DIY 鸡蛋饼干</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <main id="top">
+        <section class="lab-section" id="labSection">
+          <div class="lab-layout">
+            <aside class="control-panel">
+              <div class="panel-block">
+                <div class="panel-kicker">选择面糊</div>
+                <div class="flavor-switch" role="group" aria-label="选择口味">
+                  <button class="flavor-button is-active" data-flavor="original" type="button">
+                    <span class="flavor-swatch flavor-swatch-original"></span>
+                    <span><b>原味</b></span>
+                    <span class="check-mark">✓</span>
+                  </button>
+                  <button class="flavor-button" data-flavor="cocoa" type="button">
+                    <span class="flavor-swatch flavor-swatch-cocoa"></span>
+                    <span><b>可可味</b></span>
+                    <span class="check-mark">✓</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="panel-block">
+                <div class="panel-kicker">裱花袋粗细</div>
+                <div class="size-switch" role="group" aria-label="选择裱花袋粗细">
+                  <button class="size-button" data-size="small" type="button"><span class="size-dot size-small"></span>细线</button>
+                  <button class="size-button is-active" data-size="medium" type="button"><span class="size-dot size-medium"></span>标准</button>
+                  <button class="size-button" data-size="large" type="button"><span class="size-dot size-large"></span>粗线</button>
+                </div>
+              </div>
+
+              <div class="panel-actions">
+                <button class="text-button" id="undoButton" type="button"><span>↶</span> 撤回</button>
+                <button class="text-button danger-button" id="clearButton" type="button"><span>×</span> 重做</button>
+              </div>
+            </aside>
+
+            <div class="canvas-card">
+              <div class="canvas-wrap" id="canvasWrap">
+                <canvas id="cookieCanvas" width="1000" height="620" aria-label="饼干绘画画布"></canvas>
+                <div class="piping-bag-cursor" id="pipingBagCursor" aria-hidden="true">
+                  <svg viewBox="0 0 88 112" role="img">
+                    <path class="bag-shadow" d="M22 25h46l-8 57H29z" />
+                    <path class="bag-body" d="M20 19h48l-8 59H28z" />
+                    <path class="bag-fold" d="M20 19h48l-6 14H26z" />
+                    <path class="bag-tip" d="M43 78h13l-7 26z" />
+                    <path class="bag-band" d="M26 32h39" />
+                    <path class="bag-shine" d="M31 38l-5 29" />
+                  </svg>
+                </div>
+                <div class="bake-overlay" id="bakeOverlay" aria-hidden="true">
+                  <b id="bakeStatus">烘烤中</b>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="lab-bottom-bar">
+            <button class="bake-button" id="bakeButton" type="button">烘烤 <span>→</span></button>
+            <button class="export-button" id="exportButton" type="button" hidden>导出透明 PNG</button>
+          </div>
+        </section>
+      </main>
+
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
