@@ -327,13 +327,14 @@
 
   function drawBakedEdge(context) {
     // Build a soft, shared toasted halo for the whole cookie union. Layered
-    // masks let the colour fade from the outside inward. Keep the transition
-    // broad and low-contrast so it reads as toasted colour inside the dough,
-    // not as a separate dark ring around the cookie.
-    const outerMask = createStrokeMask(context, 14);
-    const middleMask = createStrokeMask(context, 7);
-    paintTintedMask(context, outerMask, '#b17942', .16, 7.2);
-    paintTintedMask(context, middleMask, '#a56331', .16, 3.8);
+    // masks let the colour fade from the outside inward instead of leaving a
+    // sharp dark contour or seams between touching flavours.
+    const outerMask = createStrokeMask(context, 11);
+    const middleMask = createStrokeMask(context, 6);
+    const innerMask = createStrokeMask(context, 2.5);
+    paintTintedMask(context, outerMask, '#b17942', .22, 5.8);
+    paintTintedMask(context, middleMask, '#a56331', .25, 3.1);
+    paintTintedMask(context, innerMask, '#985528', .24, 1.4);
   }
 
   function createBakedPaint(context, stroke, colors) {
