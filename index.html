@@ -39,6 +39,28 @@
                 </div>
               </div>
 
+              <div class="panel-block icing-panel" id="icingPanel" hidden>
+                <div class="panel-kicker">糖霜颜色</div>
+                <div class="icing-color-row">
+                  <label class="color-picker" for="icingColor">
+                    <input id="icingColor" type="color" value="#fff9ee" aria-label="选择糖霜颜色" />
+                    <span class="color-picker-preview" id="icingColorPreview"></span>
+                  </label>
+                  <span class="color-value" id="icingColorValue">#FFF9EE</span>
+                </div>
+                <div class="icing-size-label">糖霜粗细</div>
+                <div class="size-switch" role="group" aria-label="选择糖霜粗细">
+                  <button class="icing-size-button size-button" data-icing-size="small" type="button"><span class="size-dot size-small"></span>细线</button>
+                  <button class="icing-size-button size-button is-active" data-icing-size="medium" type="button"><span class="size-dot size-medium"></span>标准</button>
+                  <button class="icing-size-button size-button" data-icing-size="large" type="button"><span class="size-dot size-large"></span>粗线</button>
+                </div>
+                <div class="icing-layer-heading">
+                  <div class="icing-size-label">糖霜图层</div>
+                  <button class="new-layer-button" id="newIcingLayerButton" type="button">＋ 新建</button>
+                </div>
+                <div class="icing-layer-list" id="icingLayerList" role="list" aria-label="糖霜图层列表"></div>
+              </div>
+
               <div class="panel-actions">
                 <button class="text-button" id="undoButton" type="button"><span>↶</span> 撤回</button>
                 <button class="text-button danger-button" id="clearButton" type="button"><span>×</span> 重做</button>
@@ -67,6 +89,8 @@
 
           <div class="lab-bottom-bar">
             <button class="bake-button" id="bakeButton" type="button">烘烤 <span>→</span></button>
+            <button class="icing-button" id="icingButton" type="button" hidden>添加糖霜 <span>→</span></button>
+            <button class="icing-done-button" id="icingDoneButton" type="button" hidden>完成糖霜</button>
             <button class="export-button" id="exportButton" type="button" hidden>导出透明 PNG</button>
           </div>
         </section>

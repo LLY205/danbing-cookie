@@ -6,6 +6,14 @@
   const exportButton = document.getElementById('exportButton');
   const undoButton = document.getElementById('undoButton');
   const clearButton = document.getElementById('clearButton');
+  const icingButton = document.getElementById('icingButton');
+  const icingDoneButton = document.getElementById('icingDoneButton');
+  const icingPanel = document.getElementById('icingPanel');
+  const icingColorInput = document.getElementById('icingColor');
+  const icingColorPreview = document.getElementById('icingColorPreview');
+  const icingColorValue = document.getElementById('icingColorValue');
+  const newIcingLayerButton = document.getElementById('newIcingLayerButton');
+  const icingLayerList = document.getElementById('icingLayerList');
   const pipingBagCursor = document.getElementById('pipingBagCursor');
   const bakeOverlay = document.getElementById('bakeOverlay');
 
@@ -15,13 +23,20 @@
   };
   // The batter is intentionally thinner than a normal paint brush: it should spread a little after leaving the nozzle.
   const brushSizes = { small: 8, medium: 15, large: 24 };
+  const icingBrushSizes = { small: 7, medium: 14, large: 23 };
   let flavor = 'original';
   let brushSize = 'medium';
+  let icingSize = 'medium';
+  let icingColor = icingColorInput.value;
   let strokes = [];
+  let icingLayers = [];
+  let activeIcingLayerIndex = 0;
   let activeStroke = null;
+  let activeIcingStroke = null;
   let isDrawing = false;
   let isBaked = false;
   let isBaking = false;
+  let isIcingMode = false;
   let seed = 282;
   let fluidFrame = null;
   let fluidTime = 0;
@@ -29,6 +44,76 @@
   function seededRandom() {
     seed = (seed * 9301 + 49297) % 233280;
     return seed / 233280;
+  }
+
+  function hexToRgb(hex) {
+    const normalized = hex.replace('#', '');
+    const value = normalized.length === 3
+      ? normalized.split('').map((part) => part + part).join('')
+      : normalized;
+    return {
+      r: parseInt(value.slice(0, 2), 16),
+      g: parseInt(value.slice(2, 4), 16),
+      b: parseInt(value.slice(4, 6), 16),
+    };
+  }
+
+  function shiftColor(hex, amount) {
+    const rgb = hexToRgb(hex);
+    const target = amount >= 0 ? 255 : 0;
+    const strength = Math.abs(amount);
+    const channel = (value) => Math.round(value + (target - value) * strength);
+    return `rgb(${channel(rgb.r)}, ${channel(rgb.g)}, ${channel(rgb.b)})`;
+  }
+
+  function makeIcingLayer() {
+    return {
+      name: `糖霜 ${icingLayers.length + 1}`,
+      visible: true,
+      strokes: [],
+    };
+  }
+
+  function ensureIcingLayer() {
+    if (!icingLayers.length) icingLayers.push(makeIcingLayer());
+    activeIcingLayerIndex = Math.min(activeIcingLayerIndex, icingLayers.length - 1);
+    return icingLayers[activeIcingLayerIndex];
+  }
+
+  function hasIcingArtwork() {
+    return icingLayers.some((layer) => layer.strokes.length);
+  }
+
+  function renderIcingLayerList() {
+    icingLayerList.replaceChildren();
+    icingLayers.forEach((layer, index) => {
+      const row = document.createElement('div');
+      row.className = `icing-layer-row${index === activeIcingLayerIndex ? ' is-active' : ''}`;
+      row.setAttribute('role', 'listitem');
+
+      const selectButton = document.createElement('button');
+      selectButton.className = 'icing-layer-select';
+      selectButton.type = 'button';
+      selectButton.textContent = layer.name;
+      selectButton.addEventListener('click', () => {
+        activeIcingLayerIndex = index;
+        renderIcingLayerList();
+      });
+
+      const visibilityButton = document.createElement('button');
+      visibilityButton.className = 'icing-layer-visibility';
+      visibilityButton.type = 'button';
+      visibilityButton.textContent = layer.visible ? '显示' : '隐藏';
+      visibilityButton.setAttribute('aria-label', `${layer.name}${layer.visible ? '隐藏' : '显示'}`);
+      visibilityButton.addEventListener('click', () => {
+        layer.visible = !layer.visible;
+        renderIcingLayerList();
+        render();
+      });
+
+      row.append(selectButton, visibilityButton);
+      icingLayerList.append(row);
+    });
   }
 
   function roundedRect(context, x, y, width, height, radius) {
@@ -138,6 +223,7 @@
     drawStrokeLayers(context, baked);
     if (!baked && strokes.length) drawFluidBeads(context);
     if (baked) drawBakedTexture(context);
+    if (baked && hasIcingArtwork()) drawIcingLayers(context);
   }
 
   function traceStroke(context, points, offsetX = 0, offsetY = 0) {
@@ -241,14 +327,13 @@
 
   function drawBakedEdge(context) {
     // Build a soft, shared toasted halo for the whole cookie union. Layered
-    // masks let the colour fade from the outside inward instead of leaving a
-    // sharp dark contour or seams between touching flavours.
-    const outerMask = createStrokeMask(context, 11);
-    const middleMask = createStrokeMask(context, 6);
-    const innerMask = createStrokeMask(context, 2.5);
-    paintTintedMask(context, outerMask, '#b17942', .22, 5.8);
-    paintTintedMask(context, middleMask, '#a56331', .25, 3.1);
-    paintTintedMask(context, innerMask, '#985528', .24, 1.4);
+    // masks let the colour fade from the outside inward. Keep the transition
+    // broad and low-contrast so it reads as toasted colour inside the dough,
+    // not as a separate dark ring around the cookie.
+    const outerMask = createStrokeMask(context, 14);
+    const middleMask = createStrokeMask(context, 7);
+    paintTintedMask(context, outerMask, '#b17942', .16, 7.2);
+    paintTintedMask(context, middleMask, '#a56331', .16, 3.8);
   }
 
   function createBakedPaint(context, stroke, colors) {
@@ -328,6 +413,139 @@
       y: bead.y - tangent.y * radius * .95 + normal.y * (radius * .32 + wobble),
     };
     fillEllipse(context, drip, Math.max(1.2, radius * .18), Math.max(1.2, radius * .32), Math.atan2(tangent.y, tangent.x), colors.batter, .35);
+  }
+
+  function getIcingBounds(stroke, padding = 4) {
+    const radius = icingBrushSizes[stroke.size] / 2 + padding;
+    const xs = stroke.points.map((point) => point.x);
+    const ys = stroke.points.map((point) => point.y);
+    return {
+      left: Math.max(0, Math.min(...xs) - radius),
+      top: Math.max(0, Math.min(...ys) - radius),
+      right: Math.min(canvas.width, Math.max(...xs) + radius),
+      bottom: Math.min(canvas.height, Math.max(...ys) + radius),
+    };
+  }
+
+  function createIcingMask(context, layer, extraWidth = 0) {
+    const maskCanvas = document.createElement('canvas');
+    maskCanvas.width = context.canvas.width;
+    maskCanvas.height = context.canvas.height;
+    const maskContext = maskCanvas.getContext('2d');
+    maskContext.lineCap = 'round';
+    maskContext.lineJoin = 'round';
+    maskContext.strokeStyle = '#fff';
+    layer.strokes.forEach((stroke) => {
+      if (!stroke.points.length) return;
+      maskContext.lineWidth = icingBrushSizes[stroke.size] + extraWidth;
+      traceStroke(maskContext, stroke.points);
+      maskContext.stroke();
+    });
+    return maskCanvas;
+  }
+
+  function createIcingEdgeMask(context, layer, thickness = 2.2) {
+    const outer = createIcingMask(context, layer);
+    const eroded = document.createElement('canvas');
+    eroded.width = context.canvas.width;
+    eroded.height = context.canvas.height;
+    const erodedContext = eroded.getContext('2d');
+    erodedContext.drawImage(outer, 0, 0);
+    [
+      [thickness, 0],
+      [-thickness, 0],
+      [0, thickness],
+      [0, -thickness],
+    ].forEach(([offsetX, offsetY]) => {
+      erodedContext.globalCompositeOperation = 'destination-in';
+      erodedContext.drawImage(outer, offsetX, offsetY);
+    });
+
+    const edge = document.createElement('canvas');
+    edge.width = context.canvas.width;
+    edge.height = context.canvas.height;
+    const edgeContext = edge.getContext('2d');
+    edgeContext.drawImage(outer, 0, 0);
+    edgeContext.globalCompositeOperation = 'destination-out';
+    edgeContext.drawImage(eroded, 0, 0);
+    return edge;
+  }
+
+  function paintIcingBody(context, mask, color) {
+    const bodyCanvas = document.createElement('canvas');
+    bodyCanvas.width = context.canvas.width;
+    bodyCanvas.height = context.canvas.height;
+    const bodyContext = bodyCanvas.getContext('2d');
+    const light = shiftColor(color, .3);
+    const highlight = shiftColor(color, .76);
+    const deep = shiftColor(color, -.2);
+    const body = bodyContext.createLinearGradient(0, 0, bodyCanvas.width, bodyCanvas.height);
+    body.addColorStop(0, highlight);
+    body.addColorStop(.2, light);
+    body.addColorStop(.62, color);
+    body.addColorStop(1, deep);
+    bodyContext.fillStyle = body;
+    bodyContext.fillRect(0, 0, bodyCanvas.width, bodyCanvas.height);
+    bodyContext.globalCompositeOperation = 'destination-in';
+    bodyContext.globalAlpha = .98;
+    bodyContext.drawImage(mask, 0, 0);
+    context.globalAlpha = .98;
+    context.drawImage(bodyCanvas, 0, 0);
+    context.globalAlpha = 1;
+  }
+
+  function drawIcingLayer(context, layer, layerIndex) {
+    const strokesInLayer = layer.strokes.filter((stroke) => stroke.points.length);
+    if (!strokesInLayer.length) return;
+    const layerMask = createIcingMask(context, layer);
+    const rimMask = createIcingMask(context, layer, 3.5);
+    const edgeMask = createIcingEdgeMask(context, layer);
+    const baseColor = strokesInLayer[0].color || icingColor;
+    const underside = shiftColor(baseColor, -.3);
+
+    // One shadow for the union of the layer makes touching strokes fuse into
+    // one icing mass instead of producing a dark outline around every stroke.
+    paintTintedMask(context, rimMask, underside, .19 + layerIndex * .035, 2.6, 0, 1.8 + layerIndex * 1.35);
+    paintTintedMask(context, layerMask, underside, .27 + layerIndex * .035, 3.7, 0, 2.6 + layerIndex * 1.5);
+
+    // Merge all strokes of the same colour into one mask before painting the
+    // body. Different nozzle sizes can then overlap without leaving a seam or
+    // reading as two independent lines.
+    const colorGroups = new Map();
+    strokesInLayer.forEach((stroke) => {
+      const color = stroke.color || icingColor;
+      if (!colorGroups.has(color)) colorGroups.set(color, []);
+      colorGroups.get(color).push(stroke);
+    });
+    colorGroups.forEach((group, color) => {
+      paintIcingBody(context, createIcingMask(context, { strokes: group }), color);
+    });
+
+    // A soft inner rim catches the light around the entire perimeter. The
+    // upper-left edge therefore also has a gentle shadow instead of fading
+    // into a flat bright border.
+    paintTintedMask(context, edgeMask, underside, .32 + layerIndex * .025, .8);
+  }
+
+  function drawIcingLayers(context) {
+    const icingCanvas = document.createElement('canvas');
+    icingCanvas.width = context.canvas.width;
+    icingCanvas.height = context.canvas.height;
+    const icingContext = icingCanvas.getContext('2d');
+    let visibleLayerIndex = 0;
+    icingLayers.forEach((layer) => {
+      if (!layer.visible) return;
+      drawIcingLayer(icingContext, layer, visibleLayerIndex);
+      visibleLayerIndex += 1;
+    });
+
+    // Keep the entire composed frosting stack inside the baked cookie, not
+    // only the pointer path. This also clips soft shadows and highlights at
+    // the cookie edge.
+    icingContext.globalCompositeOperation = 'destination-in';
+    icingContext.globalAlpha = 1;
+    icingContext.drawImage(createStrokeMask(context), 0, 0);
+    context.drawImage(icingCanvas, 0, 0);
   }
 
   function getStrokeBounds(stroke, padding = 4) {
@@ -413,11 +631,13 @@
   }
 
   function startFluidAnimation() {
-    if (fluidFrame || isBaked || !strokes.length) return;
+    const hasFluidArtwork = !isBaked && strokes.length;
+    if (fluidFrame || !hasFluidArtwork) return;
     const tick = (now) => {
       fluidTime = now;
       render();
-      if (!isBaked && strokes.length) fluidFrame = requestAnimationFrame(tick);
+      const shouldContinue = !isBaked && strokes.length;
+      if (shouldContinue) fluidFrame = requestAnimationFrame(tick);
       else fluidFrame = null;
     };
     fluidFrame = requestAnimationFrame(tick);
@@ -440,6 +660,26 @@
       && point.y <= paper.y + paper.height - inset;
   }
 
+  function distanceToSegment(point, start, end) {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const lengthSquared = dx * dx + dy * dy;
+    if (!lengthSquared) return Math.hypot(point.x - start.x, point.y - start.y);
+    const progress = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared));
+    return Math.hypot(point.x - (start.x + progress * dx), point.y - (start.y + progress * dy));
+  }
+
+  function isPointOnCookie(point) {
+    return strokes.some((stroke) => {
+      const radius = brushSizes[stroke.size] / 2 + 7;
+      if (stroke.points.length === 1) return Math.hypot(point.x - stroke.points[0].x, point.y - stroke.points[0].y) <= radius;
+      return stroke.points.some((current, index) => {
+        if (index === 0) return false;
+        return distanceToSegment(point, stroke.points[index - 1], current) <= radius;
+      });
+    });
+  }
+
   function updateCursor(event) {
     const rect = canvasWrap.getBoundingClientRect();
     pipingBagCursor.style.left = `${event.clientX - rect.left}px`;
@@ -447,12 +687,15 @@
   }
 
   function startDrawing(event) {
-    if (isBaking || isBaked) return;
+    if (isBaking) return;
     const point = getPoint(event);
-    if (!isInsideCookie(point)) return;
+    const drawingIcing = isBaked && isIcingMode;
+    if (drawingIcing ? !isPointOnCookie(point) : (isBaked || !isInsideCookie(point))) return;
     isDrawing = true;
-    activeStroke = { flavor, size: brushSize, points: [point] };
-    strokes.push(activeStroke);
+    activeStroke = drawingIcing ? null : { flavor, size: brushSize, points: [point] };
+    activeIcingStroke = drawingIcing ? { color: icingColor, size: icingSize, points: [point] } : null;
+    if (drawingIcing) ensureIcingLayer().strokes.push(activeIcingStroke);
+    else strokes.push(activeStroke);
     canvas.setPointerCapture?.(event.pointerId);
     render();
     startFluidAnimation();
@@ -460,19 +703,22 @@
 
   function draw(event) {
     updateCursor(event);
-    if (!isDrawing || !activeStroke) return;
+    if (!isDrawing || (!activeStroke && !activeIcingStroke)) return;
     const point = getPoint(event);
-    if (!isInsideCookie(point)) return;
-    const previous = activeStroke.points[activeStroke.points.length - 1];
+    const drawingIcing = Boolean(activeIcingStroke);
+    if (drawingIcing ? !isPointOnCookie(point) : !isInsideCookie(point)) return;
+    const currentStroke = activeIcingStroke || activeStroke;
+    const previous = currentStroke.points[currentStroke.points.length - 1];
     const distance = Math.hypot(point.x - previous.x, point.y - previous.y);
     if (distance < 2) return;
-    activeStroke.points.push(point);
+    currentStroke.points.push(point);
     render();
   }
 
   function stopDrawing() {
     isDrawing = false;
     activeStroke = null;
+    activeIcingStroke = null;
   }
 
   function selectFlavor(nextFlavor) {
@@ -482,23 +728,85 @@
 
   function selectSize(nextSize) {
     brushSize = nextSize;
-    document.querySelectorAll('.size-button').forEach((button) => button.classList.toggle('is-active', button.dataset.size === brushSize));
+    document.querySelectorAll('.size-button[data-size]').forEach((button) => button.classList.toggle('is-active', button.dataset.size === brushSize));
+  }
+
+  function selectIcingSize(nextSize) {
+    icingSize = nextSize;
+    document.querySelectorAll('.icing-size-button').forEach((button) => button.classList.toggle('is-active', button.dataset.icingSize === icingSize));
+  }
+
+  function updateIcingColor(nextColor) {
+    icingColor = nextColor;
+    icingColorInput.value = nextColor;
+    icingColorPreview.style.background = nextColor;
+    icingColorValue.textContent = nextColor.toUpperCase();
+  }
+
+  function setIcingControls(visible) {
+    icingPanel.hidden = !visible;
+    icingButton.hidden = visible || !isBaked;
+    icingDoneButton.hidden = !visible;
+    icingPanel.setAttribute('aria-hidden', String(!visible));
+  }
+
+  function enterIcingMode() {
+    if (!isBaked) return;
+    isIcingMode = true;
+    ensureIcingLayer();
+    bakeButton.hidden = true;
+    setIcingControls(true);
+    renderIcingLayerList();
+    pipingBagCursor.classList.add('is-visible');
+    render();
+  }
+
+  function exitIcingMode() {
+    isIcingMode = false;
+    setIcingControls(false);
+    pipingBagCursor.classList.remove('is-visible');
+    render();
+  }
+
+  function createNewIcingLayer() {
+    if (!isBaked) return;
+    icingLayers.push(makeIcingLayer());
+    activeIcingLayerIndex = icingLayers.length - 1;
+    renderIcingLayerList();
+    render();
   }
 
   function clearArtwork() {
     strokes = [];
+    icingLayers = [];
+    activeIcingLayerIndex = 0;
     activeStroke = null;
+    activeIcingStroke = null;
     isBaked = false;
+    isBaking = false;
+    isIcingMode = false;
     bakeButton.disabled = false;
+    bakeButton.hidden = false;
+    icingButton.hidden = true;
+    icingDoneButton.hidden = true;
+    icingPanel.hidden = true;
     exportButton.hidden = true;
     exportButton.disabled = true;
+    icingLayerList.replaceChildren();
     render();
   }
 
   function undoArtwork() {
+    if (isBaked) {
+      const layer = icingLayers[activeIcingLayerIndex];
+      if (!layer || !layer.strokes.length) return;
+      layer.strokes.pop();
+      render();
+      startFluidAnimation();
+      return;
+    }
     if (!strokes.length) return;
     strokes.pop();
-    isBaked = false;
     bakeButton.disabled = false;
     exportButton.hidden = true;
     exportButton.disabled = true;
@@ -509,8 +817,12 @@
   function bakeArtwork() {
     if (isBaking) return;
     if (!strokes.length) return;
+    isIcingMode = false;
     isBaking = true;
     bakeButton.disabled = true;
+    icingButton.hidden = true;
+    icingDoneButton.hidden = true;
+    icingPanel.hidden = true;
     exportButton.hidden = true;
     exportButton.disabled = true;
     pipingBagCursor.classList.remove('is-visible');
@@ -531,6 +843,10 @@
     isBaked = true;
     bakeOverlay.classList.remove('is-visible');
     bakeOverlay.setAttribute('aria-hidden', 'true');
+    bakeButton.hidden = true;
+    icingButton.hidden = false;
+    icingDoneButton.hidden = true;
+    icingPanel.hidden = true;
     exportButton.hidden = false;
     exportButton.disabled = false;
     render();
@@ -546,6 +862,7 @@
     drawBakedEdge(exportContext);
     drawStrokeLayers(exportContext, true);
     drawBakedTexture(exportContext);
+    if (hasIcingArtwork()) drawIcingLayers(exportContext);
     const link = document.createElement('a');
     link.download = '鸡蛋饼干-透明底.png';
     link.href = exportCanvas.toDataURL('image/png');
@@ -559,12 +876,20 @@
   canvas.addEventListener('pointerenter', (event) => { updateCursor(event); pipingBagCursor.classList.add('is-visible'); });
   canvas.addEventListener('pointerleave', () => { stopDrawing(); pipingBagCursor.classList.remove('is-visible'); });
   document.querySelectorAll('.flavor-button').forEach((button) => button.addEventListener('click', () => selectFlavor(button.dataset.flavor)));
-  document.querySelectorAll('.size-button').forEach((button) => button.addEventListener('click', () => selectSize(button.dataset.size)));
+  document.querySelectorAll('.size-button[data-size]').forEach((button) => button.addEventListener('click', () => selectSize(button.dataset.size)));
+  document.querySelectorAll('.icing-size-button').forEach((button) => button.addEventListener('click', () => selectIcingSize(button.dataset.icingSize)));
+  icingColorInput.addEventListener('input', (event) => updateIcingColor(event.target.value));
   bakeButton.addEventListener('click', bakeArtwork);
+  icingButton.addEventListener('click', enterIcingMode);
+  icingDoneButton.addEventListener('click', exitIcingMode);
+  newIcingLayerButton.addEventListener('click', createNewIcingLayer);
   exportButton.addEventListener('click', exportTransparentPng);
   clearButton.addEventListener('click', clearArtwork);
   undoButton.addEventListener('click', undoArtwork);
 
   exportButton.disabled = true;
+  updateIcingColor(icingColor);
+  setIcingControls(false);
+  renderIcingLayerList();
   render();
 })();
